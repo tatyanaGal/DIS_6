@@ -14,10 +14,11 @@ import twitter4j.GeoLocation;
 import twitter4j.Status;
 import twitter4j.TwitterObjectFactory;
 
-
 import com.mongodb.BasicDBObject;
+import com.mongodb.Block;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.MongoIterable;
@@ -28,6 +29,7 @@ import com.mongodb.client.gridfs.model.GridFSUploadOptions;
 import static com.mongodb.client.model.Filters.*;
 
 import com.mongodb.client.model.Indexes;
+import com.mongodb.client.model.Sorts;
 import com.mongodb.client.model.UpdateOptions;
 
 /**
@@ -46,10 +48,13 @@ public class MovieService extends MovieServiceBase {
 	 * Create a new MovieService by connecting to MongoDB.
 	 */
 	public MovieService() {
+
 		// TODO: connect to MongoDB
-		mongo = null;
+		mongo = MongoClients.create();
+
 		// TODO Select database "imdb"
-		db = null;
+		db = mongo.getDatabase("imdb");
+
 		// Create a GriFS FileSystem Object using the db
 		fs = GridFSBuckets.create(db);
 		createSampleImage();
@@ -57,17 +62,23 @@ public class MovieService extends MovieServiceBase {
 		printCollections();
 
 		// TODO Take "movies" and "tweets" collection
-		movies = null;
-		tweets = null;
+		movies = db.getCollection("movies");
+		tweets = db.getCollection("tweets");
 
-		// If movie database isn't filled (has less than 10000 documents) delete
+		// If movie database isn't filled (has less than 10.000 documents) delete
 		// everything and fill it
 		if (movies.count() < 10000) {
 			createMovieData();
 		}
 	}
 
-
+	// TODO ??????
+	// Block<Document> printBlock = new Block<Document>() {
+	// @Override
+	// public void apply(final Document document) {
+	// System.out.println(document.toJson());
+	// }
+	// };
 
 	/**
 	 * Find a movie by title. Only return one match.
@@ -77,17 +88,17 @@ public class MovieService extends MovieServiceBase {
 	 * @return the matching DBObject
 	 */
 	public Document findMovieByTitle(String title) {
-		//TODO : implement
-		Document result = null;
+		// TODO : implement
+		Document result = movies.find(eq("title", title)).first();
 		return result;
 	}
 
-
 	/**
-	 * Find the best movies, i.e. those that have a rating greater minRating and
-	 * at least minVotes votes.
+	 * Find the best movies, i.e. those that have a rating greater minRating and at
+	 * least minVotes votes.
 	 * 
-	 * db.movies.find({votes: {$gt: minVotes}, rating: {$gt: minRating}}).sort({votes: -1, rating: -1}).limit(limit)
+	 * db.movies.find({votes: {$gt: minVotes}, rating: {$gt:
+	 * minRating}}).sort({votes: -1, rating: -1}).limit(limit)
 	 * 
 	 * 
 	 * @param minVotes
@@ -99,8 +110,9 @@ public class MovieService extends MovieServiceBase {
 	 * @return the FindIterable for the query
 	 */
 	public FindIterable<Document> getBestMovies(int minVotes, double minRating, int limit) {
-		//TODO : implement
-		FindIterable<Document>  result = null;
+		// TODO : implement
+		FindIterable<Document> result = movies.find(and(gte("votes", minVotes), gte("rating", minRating)))
+				.sort(Sorts.descending("votes", "rating")).limit(limit);
 		return result;
 	}
 
@@ -116,16 +128,17 @@ public class MovieService extends MovieServiceBase {
 	 */
 	public FindIterable<Document> getByGenre(String genreList, int limit) {
 		List<String> genres = Arrays.asList(genreList.split(","));
-		//TODO : implement
-		FindIterable<Document>  result = null;
+		// TODO : implement
+
+		FindIterable<Document> result = movies.find(all("genre", genres)).limit(limit);
 		return result;
 	}
 
 	/**
-	 * Find movies by prefix, i.e. find movies whose "title" property begins
-	 * with the given prefix. Use a regular expression similar to the
-	 * {@link #suggest(String, int)} method. This method is used to display
-	 * search results while typing.
+	 * Find movies by prefix, i.e. find movies whose "title" property begins with
+	 * the given prefix. Use a regular expression similar to the
+	 * {@link #suggest(String, int)} method. This method is used to display search
+	 * results while typing.
 	 * 
 	 * @param titlePrefix
 	 *            the prefix entered by the user
@@ -134,27 +147,41 @@ public class MovieService extends MovieServiceBase {
 	 * @return the FindIterable for the query
 	 */
 	public FindIterable<Document> searchByPrefix(String titlePrefix, int limit) {
-		//TODO : implement
-		Document prefixQuery = null;
-		FindIterable<Document> result = null;
+		// TODO : implement ????? regular expression
+		// Document query = new Document("title", Pattern.compile("^" + prefix + ".*"));
+		// Document projection = new Document("title", true);
+		// FindIterable<Document> suggestions =
+		// movies.find(query).projection(projection).limit(limit);
+		// return suggestions;
+
+		Document prefixQuery = new Document("title", Pattern.compile("^" + titlePrefix));
+		FindIterable<Document> result = movies.find(prefixQuery).limit(limit);
+
+		// OLD Implementation:
+		// Document prefixQuery = new Document();
+		// prefixQuery.append("$regex", "^(?)" + Pattern.quote(titlePrefix));
+		// Document findQuery = new Document();
+		// findQuery.append("title", prefixQuery);
+		// FindIterable<Document> result = movies.find(findQuery).limit(limit);
+
 		return result;
 	}
 
 	/**
-	 * Find all movies that have a "tweets" attribute, i.e. that were at least
-	 * once subject of a tweet.
+	 * Find all movies that have a "tweets" attribute, i.e. that were at least once
+	 * subject of a tweet.
 	 * 
 	 * @return the FindIterable for the query
 	 */
 	public FindIterable getTweetedMovies() {
-		//TODO : implement
-		FindIterable<Document>  result = null;
+		// TODO : implement
+		FindIterable<Document> result = movies.find(exists("tweets"));
 		return result;
 	}
 
 	/**
-	 * Saves a changed comment for a movie, which is displayed in the movies
-	 * details under the search tab.
+	 * Saves a changed comment for a movie, which is displayed in the movies details
+	 * under the search tab.
 	 * 
 	 * @param id
 	 *            the movie _id of the move where the comment was set.
@@ -162,30 +189,38 @@ public class MovieService extends MovieServiceBase {
 	 *            the comment to save
 	 */
 	public void saveMovieComment(String id, String comment) {
-		// TODO implement
-		Document query = null;
-		Document update = null;
-		movies.updateOne(query, update);
+		// TODO implement kein splot!
+		// Document query = null;
+		// Document update = null;
+		// movies.updateOne(query, update);
+
+		// Bson filter = new Document("name", "Harish Taware"); //filtered documents
+		// Bson newValue = new Document("salary", 90000); // which value has to be
+		// modified
+		// Bson updateOperationDocument = new Document("$set", newValue); // set
+		// operation have to be perfomed
+		// collection.updateOne(filter, updateOperationDocument); // update
+
+		movies.updateOne(eq("_id", id), new Document("$set", new Document("comment", comment)));
 	}
 
-
 	/**
-	 * Find all Movies, that have tweets that contain a given keyword. Solve
-	 * this using a Regular Expression like this:
+	 * Find all Movies, that have tweets that contain a given keyword. Solve this
+	 * using a Regular Expression like this:
 	 * 
 	 * <pre>
 	 * .*keyword.*
 	 * </pre>
 	 * 
-	 * Regular expressions can be created in Java using the Pattern.compile
-	 * method. To make the search case insensitive specify the according
-	 * parameter for the pattern.<br>
+	 * Regular expressions can be created in Java using the Pattern.compile method.
+	 * To make the search case insensitive specify the according parameter for the
+	 * pattern.<br>
 	 * 
-	 * <b>Remember</b>: This is an example of a powerful query that should not
-	 * be done in practice. Wildcard regular expression queries always have to
-	 * scan the full index which is very costly. A full text search is far more
-	 * efficient (see {@link #searchTweets(String)} for an example) and would be
-	 * preferred in practice.
+	 * <b>Remember</b>: This is an example of a powerful query that should not be
+	 * done in practice. Wildcard regular expression queries always have to scan the
+	 * full index which is very costly. A full text search is far more efficient
+	 * (see {@link #searchTweets(String)} for an example) and would be preferred in
+	 * practice.
 	 * 
 	 * @param keyword
 	 *            the keyword to search
@@ -194,18 +229,27 @@ public class MovieService extends MovieServiceBase {
 	 * @return the FindIterable for the query
 	 */
 	public FindIterable getByTweetsKeywordRegex(String keyword, int limit) {
-		//TODO : implement
-		FindIterable<Document>  result = null;
+		// TODO : implement
+		// Document query = new Document("title", Pattern.compile("^" + prefix + ".*"));
+		// Document projection = new Document("title", true);
+		// FindIterable<Document> suggestions =
+		// movies.find(query).projection(projection).limit(limit);
+		// return suggestions;
+
+		Document query = new Document("tweets", Pattern.compile(".*" + keyword + ".*"));
+		query.append("$options", "i");
+
+		FindIterable<Document> result = movies.find(query).limit(limit);
 		return result;
 	}
 
 	/**
 	 * Does Full Text Search (FTS) on Tweets.
 	 * 
-	 * FTS search is powerful new feature of MongoDB. It allow Queries similar
-	 * to those performed in Google, including negation, Stemming, Stop Words
-	 * and Wildcards. To Do FTS first ensure an index of type "text" on the
-	 * tweet property "text". 
+	 * FTS search is powerful new feature of MongoDB. It allow Queries similar to
+	 * those performed in Google, including negation, Stemming, Stop Words and
+	 * Wildcards. To Do FTS first ensure an index of type "text" on the tweet
+	 * property "text".
 	 * 
 	 * @param query
 	 *            the search query
@@ -214,10 +258,20 @@ public class MovieService extends MovieServiceBase {
 	public FindIterable<Document> searchTweets(String query) {
 		// Create a text index on the "text" property of tweets
 		tweets.createIndex(new Document("text", "text").append("user.name", "text"));
-		
-		// TODO: implement
-		FindIterable<Document> result = null;
-		
+
+		// {
+		// $text:
+		// {
+		// $search: <string>,
+		// $language: <string>,
+		// $caseSensitive: <boolean>,
+		// $diacriticSensitive: <boolean>
+		// }
+		// }
+
+		// TODO: implement ?? text or user.name??
+		FindIterable<Document> result = tweets.find(new Document("$text", new Document("$search", query)));
+
 		return result;
 	}
 
@@ -229,46 +283,57 @@ public class MovieService extends MovieServiceBase {
 	 *            maximum number of records to be returned
 	 * @return the FindIterable for the query
 	 */
-	public FindIterable<Document>  getNewestTweets(int limit) {
-		//TODO : implement
-		FindIterable<Document>  result = null;
+	public FindIterable<Document> getNewestTweets(int limit) {
+		// TODO : implement
+		FindIterable<Document> result = tweets.find().sort(Sorts.descending("_id")).limit(limit);
 		return result;
 	}
 
 	/**
-	 * Find all tweets that are geotagged, i.e. have a "coordinates" attribute
-	 * that is neither null nor non-existent.
+	 * Find all tweets that are geotagged, i.e. have a "coordinates" attribute that
+	 * is neither null nor non-existent.
 	 * 
 	 * @param limit
 	 *            maximum number of records to be returned
 	 * @return the FindIterable for the query
 	 */
-	public FindIterable<Document>  getGeotaggedTweets(int limit) {
-		//TODO : implement
-		FindIterable<Document>  result = null;
+	public FindIterable<Document> getGeotaggedTweets(int limit) {
+		// TODO : implement ??? TODO-Taty:check for "non-exist" fields. they should do not be
+		// selected
+		FindIterable<Document> result = tweets.find(ne("coordinates", null));
 		return result;
 	}
 
 	// GridFS Interaction
-	
+
 	/**
-	 * Saves a file to GridFS. The file has the given name and is filles using
-	 * the provided InputStream. The given Content-Type has to be set on the
-	 * file.
+	 * Saves a file to GridFS. The file has the given name and is filles using the
+	 * provided InputStream. The given Content-Type has to be set on the file.
 	 * 
 	 * @param name
 	 * @param inputStream
 	 * @param contentType
 	 */
 	public void saveFile(String name, InputStream inputStream, String contentType) {
-		GridFSUploadOptions options = new GridFSUploadOptions().chunkSizeBytes(358400).metadata(new Document("contentType", contentType));
-		// TODO IMPLEMENT
-	    ObjectId fileId = null; 
+		GridFSUploadOptions options = new GridFSUploadOptions().chunkSizeBytes(358400)
+				.metadata(new Document("contentType", contentType));
+		// TODO IMPLEMENT HIER
+		// GridFS is the MongoDB specification for storing and retrieving large files
+		// such as images, audio files, video files, etc.
+		// GridFS by default uses two collections fs.files and fs.chunks to store the
+		// file's metadata and the chunks. Each chunk is identified by its unique _id
+		// ObjectId field. The fs.files serves as a parent document. The files_id field
+		// in the fs.chunks document links the chunk to its parent.
+
+		// TODO-Taty:Check, ob die name-Variable an der richtigen Stellen übergeben wurde? 
+		// Check, ob er die Datei gespeichert hat. fileID wird niergendwo weiter benutzt
+		ObjectId fileId = fs.uploadFromStream(name, inputStream, options);
+
 	}
 
 	/**
-	 * Retrieves a file from GridFS. If the file is not found (==null) the file
-	 * with the name "sample.png" should be loaded instead.
+	 * Retrieves a file from GridFS. If the file is not found (==null) the file with
+	 * the name "sample.png" should be loaded instead.
 	 * 
 	 * @param name
 	 *            the name of the file
@@ -281,23 +346,37 @@ public class MovieService extends MovieServiceBase {
 			file = null;
 		}
 		return file;
+		
+		
+//		ObjectId fileId; //The id of a file uploaded to GridFS, initialize to valid file id 
+//
+//		try {
+//		    FileOutputStream streamToDownloadTo = new FileOutputStream("/tmp/mongodb-tutorial.pdf");
+//		    fs.downloadToStream(fileId, streamToDownloadTo);
+//		    streamToDownloadTo.close();
+//		    System.out.println(streamToDownloadTo.toString());
+//		} catch (IOException e) {
+//		    // handle exception
+//		}
+
+		
+		
+		
 	}
 
-	
 	// === already implemented methods ===
-	
+
 	/**
-	 * Suggest movies based on a title prefix. This is used for the search
-	 * typeahead feature. The suggestions rely on a regular expression of the
-	 * form:
+	 * Suggest movies based on a title prefix. This is used for the search typeahead
+	 * feature. The suggestions rely on a regular expression of the form:
 	 * 
 	 * <pre>
 	 * ^prefix.*
 	 * </pre>
 	 * 
 	 * Anchoring the prefix to the begin using "^" ensures the efficiency of the
-	 * query. Perform a projection to the property "title", so no unnecessary
-	 * data is transferred from MongoDB.
+	 * query. Perform a projection to the property "title", so no unnecessary data
+	 * is transferred from MongoDB.
 	 * 
 	 * @param prefix
 	 * @param limit
@@ -310,21 +389,21 @@ public class MovieService extends MovieServiceBase {
 		FindIterable<Document> suggestions = movies.find(query).projection(projection).limit(limit);
 		return suggestions;
 	}
-	
+
 	/**
-	 * Find all tweets that are geotagged, i.e. that have a "coordinates"
-	 * attribute. Make sure that the "coordinates" attribute is indexed, so that
-	 * this query is efficient. Furthermore perform a projection to the
-	 * attributes "text", "movie", "user.name", "coordinates". The result is
-	 * used to display markers on the map and the projection ensures, that no
-	 * unnecessary data is transfered. The tweets should be order by the
-	 * descending (-1) "_id" property so, the newest tweets are returned first.
+	 * Find all tweets that are geotagged, i.e. that have a "coordinates" attribute.
+	 * Make sure that the "coordinates" attribute is indexed, so that this query is
+	 * efficient. Furthermore perform a projection to the attributes "text",
+	 * "movie", "user.name", "coordinates". The result is used to display markers on
+	 * the map and the projection ensures, that no unnecessary data is transfered.
+	 * The tweets should be order by the descending (-1) "_id" property so, the
+	 * newest tweets are returned first.
 	 * 
 	 * @return the FindIterable for the query
 	 */
 	public FindIterable<Document> getTaggedTweets() {
 		tweets.createIndex(new Document("coordinates", 1));
-	
+
 		Document projection = new Document("text", true).append("movie", true).append("user.name", true)
 				.append("coordinates", true);
 		Document query = new Document("coordinates", new Document("$exists", true));
@@ -332,10 +411,10 @@ public class MovieService extends MovieServiceBase {
 		FindIterable<Document> results = tweets.find(query).projection(projection).sort(sort);
 		return results;
 	}
-	
+
 	/**
-	 * Do a geospatial query to find all tweets in the given radius for a
-	 * specified point. The syntax of such a query is the following:
+	 * Do a geospatial query to find all tweets in the given radius for a specified
+	 * point. The syntax of such a query is the following:
 	 * 
 	 * <pre>
 	 * db.*collection*.find({ *location field* :
@@ -348,9 +427,9 @@ public class MovieService extends MovieServiceBase {
 	 * </pre>
 	 * 
 	 * Details on geospatial querys are documented online:
-	 * http://docs.mongodb.org/manual/reference/operator/near/#op._S_near Note
-	 * that the Radius parameter is given in km while the query takes a distance
-	 * in meters.
+	 * http://docs.mongodb.org/manual/reference/operator/near/#op._S_near Note that
+	 * the Radius parameter is given in km while the query takes a distance in
+	 * meters.
 	 * 
 	 * @param lat
 	 *            the latitude of the center point
@@ -360,36 +439,38 @@ public class MovieService extends MovieServiceBase {
 	 *            the radius to search in
 	 * @return
 	 */
-	public FindIterable<Document>  getTweetsNear(double lat, double lng, int radiusKm) {
+	public FindIterable<Document> getTweetsNear(double lat, double lng, int radiusKm) {
 		tweets.createIndex(Indexes.geo2dsphere("coordinates"));
-		
-		Document pointQuery = new Document("coordinates", new Document("$near",
-				new Document("$geometry", new Document("type", "Point").append("coordinates", new Double[] {
-						lng, lat })).append("$maxDistance", radiusKm * 1000)));
+
+		Document pointQuery = new Document("coordinates",
+				new Document("$near",
+						new Document("$geometry",
+								new Document("type", "Point").append("coordinates", new Double[] { lng, lat }))
+										.append("$maxDistance", radiusKm * 1000)));
 		return tweets.find(pointQuery);
 	}
-	
+
 	/**
-	 * Load the sample.png and store it in the database. The content type has to
-	 * be set, so the file can be retrieved and displayed by web clients.
+	 * Load the sample.png and store it in the database. The content type has to be
+	 * set, so the file can be retrieved and displayed by web clients.
 	 */
 	public void createSampleImage() {
 		// Create file
 		// fs.drop();
-		GridFSFile file = fs.find(new Document("filename","sample.png")).first();
+		GridFSFile file = fs.find(new Document("filename", "sample.png")).first();
 		if (file == null) {
 			InputStream streamToUploadFrom = MovieService.class.getResourceAsStream("/data/sample.png");
 			saveFile("sample.png", streamToUploadFrom, "image/png");
 		}
 	}
-	
+
 	public void downloadFile(GridFSFile file, OutputStream outputStream) {
 		fs.downloadToStream(file.getId(), outputStream);
 	}
-	
+
 	/**
-	 * Find all movies that have at least one tweet in their "tweets" array
-	 * which does have the "coordinates" attribute
+	 * Find all movies that have at least one tweet in their "tweets" array which
+	 * does have the "coordinates" attribute
 	 * 
 	 * @return the FindIterable for the query
 	 */
@@ -397,8 +478,6 @@ public class MovieService extends MovieServiceBase {
 		FindIterable results = movies.find(new BasicDBObject("tweets.coordinates", new Document("$exists", true)));
 		return results;
 	}
-
-	
 
 	/**
 	 * Fill the database using the data files in the data directory
@@ -419,13 +498,12 @@ public class MovieService extends MovieServiceBase {
 		movies.createIndex(Indexes.ascending("votes"));
 		movies.createIndex(Indexes.ascending("tweets.coordinates"));
 	}
-	
-	public void upsertMovie(Document movie) {	
-		if(movies.count(eq("_id", movie.getString("_id"))) <= 0)
-		{
+
+	public void upsertMovie(Document movie) {
+		if (movies.count(eq("_id", movie.getString("_id"))) <= 0) {
 			movies.insertOne(movie);
 		} else {
-			//System.out.println(movie.get("title") + "  already exists");
+			// System.out.println(movie.get("title") + " already exists");
 		}
 	}
 
@@ -466,17 +544,16 @@ public class MovieService extends MovieServiceBase {
 			saveTweet(movie, status);
 		}
 	}
-	
+
 	/**
-	 * Save a tweet emitted by the Twitter Stream. The tweet has to be saved
-	 * twice: 1) in the movie document that has a title that matches the keyword
-	 * using the "tweets" list of each movie. 2) in the separate tweets
-	 * collection which stores the JSON tweets, as outputted by the Twitter REST
-	 * API.<br>
-	 * Add the matching movie to the tweets in the tweet collection by adding a
-	 * new field "movie" to it. Also remove the "coordinates" property of the
-	 * raw tweets where that property is null. This ensure that we can uses it
-	 * for geospatial queries.
+	 * Save a tweet emitted by the Twitter Stream. The tweet has to be saved twice:
+	 * 1) in the movie document that has a title that matches the keyword using the
+	 * "tweets" list of each movie. 2) in the separate tweets collection which
+	 * stores the JSON tweets, as outputted by the Twitter REST API.<br>
+	 * Add the matching movie to the tweets in the tweet collection by adding a new
+	 * field "movie" to it. Also remove the "coordinates" property of the raw tweets
+	 * where that property is null. This ensure that we can uses it for geospatial
+	 * queries.
 	 * 
 	 * @param movie
 	 *            the name of the movie the tweet corresponds to
@@ -500,7 +577,7 @@ public class MovieService extends MovieServiceBase {
 		if (status.getGeoLocation() == null) {
 			rawTweet.remove("coordinates");
 		}
-		
+
 		Document tweet = new Document().append("user", user).append("text", text).append("retweet", retweet)
 				.append("date", date);
 
@@ -521,10 +598,10 @@ public class MovieService extends MovieServiceBase {
 		// Insert Raw Tweet
 		tweets.insertOne(rawTweet);
 		// Find matching Movie(s) and append Tweet
-		movies.updateMany(new Document("title", movie),
-				new Document("$push", new Document("tweets", tweet)), new UpdateOptions().upsert(true));
+		movies.updateMany(new Document("title", movie), new Document("$push", new Document("tweets", tweet)),
+				new UpdateOptions().upsert(true));
 	}
-	
+
 	/**
 	 * Output all Collections known to the database.
 	 */
