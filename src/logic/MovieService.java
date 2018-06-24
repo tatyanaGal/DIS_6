@@ -1,5 +1,6 @@
 package logic;
 
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
@@ -72,14 +73,6 @@ public class MovieService extends MovieServiceBase {
 		}
 	}
 
-	// TODO ??????
-	// Block<Document> printBlock = new Block<Document>() {
-	// @Override
-	// public void apply(final Document document) {
-	// System.out.println(document.toJson());
-	// }
-	// };
-
 	/**
 	 * Find a movie by title. Only return one match.
 	 * 
@@ -88,7 +81,7 @@ public class MovieService extends MovieServiceBase {
 	 * @return the matching DBObject
 	 */
 	public Document findMovieByTitle(String title) {
-		// TODO : implement
+		// TODO : implement - Done
 		Document result = movies.find(eq("title", title)).first();
 		return result;
 	}
@@ -129,7 +122,6 @@ public class MovieService extends MovieServiceBase {
 	public FindIterable<Document> getByGenre(String genreList, int limit) {
 		List<String> genres = Arrays.asList(genreList.split(","));
 		// TODO : implement
-
 		FindIterable<Document> result = movies.find(all("genre", genres)).limit(limit);
 		return result;
 	}
@@ -147,23 +139,9 @@ public class MovieService extends MovieServiceBase {
 	 * @return the FindIterable for the query
 	 */
 	public FindIterable<Document> searchByPrefix(String titlePrefix, int limit) {
-		// TODO : implement ????? regular expression
-		// Document query = new Document("title", Pattern.compile("^" + prefix + ".*"));
-		// Document projection = new Document("title", true);
-		// FindIterable<Document> suggestions =
-		// movies.find(query).projection(projection).limit(limit);
-		// return suggestions;
-
-		Document prefixQuery = new Document("title", Pattern.compile("^" + titlePrefix));
+		// TODO : implement
+		Document prefixQuery = new Document("title", Pattern.compile("^" + titlePrefix, Pattern.CASE_INSENSITIVE));
 		FindIterable<Document> result = movies.find(prefixQuery).limit(limit);
-
-		// OLD Implementation:
-		// Document prefixQuery = new Document();
-		// prefixQuery.append("$regex", "^(?)" + Pattern.quote(titlePrefix));
-		// Document findQuery = new Document();
-		// findQuery.append("title", prefixQuery);
-		// FindIterable<Document> result = movies.find(findQuery).limit(limit);
-
 		return result;
 	}
 
@@ -190,9 +168,6 @@ public class MovieService extends MovieServiceBase {
 	 */
 	public void saveMovieComment(String id, String comment) {
 		// TODO implement kein splot!
-		// Document query = null;
-		// Document update = null;
-		// movies.updateOne(query, update);
 
 		// Bson filter = new Document("name", "Harish Taware"); //filtered documents
 		// Bson newValue = new Document("salary", 90000); // which value has to be
@@ -230,15 +205,7 @@ public class MovieService extends MovieServiceBase {
 	 */
 	public FindIterable getByTweetsKeywordRegex(String keyword, int limit) {
 		// TODO : implement
-		// Document query = new Document("title", Pattern.compile("^" + prefix + ".*"));
-		// Document projection = new Document("title", true);
-		// FindIterable<Document> suggestions =
-		// movies.find(query).projection(projection).limit(limit);
-		// return suggestions;
-
-		Document query = new Document("tweets", Pattern.compile(".*" + keyword + ".*"));
-		query.append("$options", "i");
-
+		Document query = new Document("tweets.text", Pattern.compile(".*" + keyword + ".*", Pattern.CASE_INSENSITIVE));
 		FindIterable<Document> result = movies.find(query).limit(limit);
 		return result;
 	}
@@ -256,10 +223,18 @@ public class MovieService extends MovieServiceBase {
 	 * @return a List of Objects returned by the FTS query
 	 */
 	public FindIterable<Document> searchTweets(String query) {
-		// Create a text index on the "text" property of tweets
-		tweets.createIndex(new Document("text", "text").append("user.name", "text"));
 
-		// {
+		// MongoDB provides text indexes to support text search queries on string
+		// content. text indexes can include any field whose value is a string or an
+		// array of string elements.
+		//
+		// To perform text search queries, you must have a text index on your
+		// collection. A collection can only have one text search index, but that index
+		// can cover multiple fields. MDB to create text indexes: db.stores.createIndex(
+		// { name: "text", description: "text" } )
+		// Use the $text query operator to perform text searches on a collection with a
+		// text index: db.stores.find( { $text: { $search: "java coffee shop" } } )
+		// // {
 		// $text:
 		// {
 		// $search: <string>,
@@ -269,9 +244,10 @@ public class MovieService extends MovieServiceBase {
 		// }
 		// }
 
-		// TODO: implement ?? text or user.name??
+		// Create a text index on the "text" property of tweets
+		tweets.createIndex(new Document("text", "text").append("user.name", "text"));
+		// TODO: implement
 		FindIterable<Document> result = tweets.find(new Document("$text", new Document("$search", query)));
-
 		return result;
 	}
 
@@ -298,8 +274,8 @@ public class MovieService extends MovieServiceBase {
 	 * @return the FindIterable for the query
 	 */
 	public FindIterable<Document> getGeotaggedTweets(int limit) {
-		// TODO : implement ??? TODO-Taty:check for "non-exist" fields. they should do not be
-		// selected
+		// TODO : implement ??? TODO-Taty:check for "non-exist" fields. they should do
+		// not be selected
 		FindIterable<Document> result = tweets.find(ne("coordinates", null));
 		return result;
 	}
@@ -315,9 +291,7 @@ public class MovieService extends MovieServiceBase {
 	 * @param contentType
 	 */
 	public void saveFile(String name, InputStream inputStream, String contentType) {
-		GridFSUploadOptions options = new GridFSUploadOptions().chunkSizeBytes(358400)
-				.metadata(new Document("contentType", contentType));
-		// TODO IMPLEMENT HIER
+
 		// GridFS is the MongoDB specification for storing and retrieving large files
 		// such as images, audio files, video files, etc.
 		// GridFS by default uses two collections fs.files and fs.chunks to store the
@@ -325,10 +299,13 @@ public class MovieService extends MovieServiceBase {
 		// ObjectId field. The fs.files serves as a parent document. The files_id field
 		// in the fs.chunks document links the chunk to its parent.
 
-		// TODO-Taty:Check, ob die name-Variable an der richtigen Stellen übergeben wurde? 
-		// Check, ob er die Datei gespeichert hat. fileID wird niergendwo weiter benutzt
-		ObjectId fileId = fs.uploadFromStream(name, inputStream, options);
+		GridFSUploadOptions options = new GridFSUploadOptions().chunkSizeBytes(358400)
+				.metadata(new Document("contentType", contentType));
 
+		// TODO-Taty:Check, ob die name-Variable an der richtigen Stellen übergeben
+		// wurde?
+		// Check, ob er die Datei gespeichert hat
+		fs.uploadFromStream(name, inputStream, options);
 	}
 
 	/**
@@ -341,27 +318,11 @@ public class MovieService extends MovieServiceBase {
 	 */
 	public GridFSFile getFile(String name) {
 		// TODO: Implement
-		GridFSFile file = null;
+		GridFSFile file = fs.find(new Document("filename", name)).first();
 		if (file == null) {
-			file = null;
+			file = fs.find(new Document("filename", "sample.png")).first();
 		}
 		return file;
-		
-		
-//		ObjectId fileId; //The id of a file uploaded to GridFS, initialize to valid file id 
-//
-//		try {
-//		    FileOutputStream streamToDownloadTo = new FileOutputStream("/tmp/mongodb-tutorial.pdf");
-//		    fs.downloadToStream(fileId, streamToDownloadTo);
-//		    streamToDownloadTo.close();
-//		    System.out.println(streamToDownloadTo.toString());
-//		} catch (IOException e) {
-//		    // handle exception
-//		}
-
-		
-		
-		
 	}
 
 	// === already implemented methods ===
