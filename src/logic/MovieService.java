@@ -1,6 +1,5 @@
 package logic;
 
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
@@ -9,14 +8,12 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 import org.bson.Document;
-import org.bson.types.ObjectId;
 
 import twitter4j.GeoLocation;
 import twitter4j.Status;
 import twitter4j.TwitterObjectFactory;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.Block;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
